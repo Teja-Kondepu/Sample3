@@ -1,0 +1,147 @@
+file:///P:/College/4_1%20Lab/DevOps/Teja%20Kondepu%20DevOps%20Record.pdf
+
+2. Install jdk-17
+----------------------
+sudo yum install java-17-amazon-corretto-devel
+
+export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto
+
+
+3. Install Tomcat:-
+----------------------
+
+wget https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.98/bin/apache-tomcat-9.0.98.tar.gz
+tar -xvzf apache-tomcat-9.0.01.tar.az
+mv apache-tomcat-9.0.01 tomcat
+ln -s /opt/tomcat/bin startup.sh /usr/bin/tomcat-start
+ln -s /opt/tomcat/bin shutdown.sh /usr/bin/tomcat-stop
+Search for context.xml in tomcat. 
+find -name context.xml
+
+
+In conf/tomcat-users.xml
+<role rolename=”manager-gui”/>
+<role rolename=”manager-script”/>
+<user username=”admin” password="tomcat” roles =”manager-gui”/>
+<user username=”admin” password="tomcat” roles =”manager-script”/>
+
+Test the Tomcat installation with http://<publicip>:8080
+
+Install maven :-
+---------------
+
+wget https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz
+tar -zxvf apache-maven-3.9.8-bin.tar.gz
+mv apache-maven-3.9.8 maven
+
+export M2_HOME=/opt/maven
+export M2=/opt/maven/bin
+export PATH=$PATH:$M2
+
+create a application directory
+
+mvn archetype:generate -DgroupId=com.example -DartifactId=sample-webapp -DarchetypeArtifactId=maven-archetype-webapp -DinteractiveMode=false
+
+
+cd sample-webapp
+
+Build it
+mvn package
+
+sudo su
+cp ./target/sample-webapp.war /opt/tomcat/webapps
+Test it from http://<publicip>:8080/sample-webapp
+
+To Install Jenkins in your Instance Use Below Commands
+
+1)wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat/jenkins.repo
+
+2)rpm --import https://pkg.jenkins.io/redhat/jenkins.io-2023.key
+
+
+In Tomcat-Instance :-
+
+usermod -aG root ec2-user
+chmod -R g+w /opt/tomcat/webapps
+
+
+sudo usermod -aG docker dockeradmin
+sudo chown -R dockeradmin:dockeradmin docker(after going to mkdir location)
+sudo chmod 777 /var/run/docker.sock (Both Docker & Ansible)
+ 
+ 
+FROM tomcat:latest
+RUN cp -R /usr/local/tomcat/webapps.dist/* /usr/local/tomcat/webapps/
+COPY ./*.war /usr/local/tomcat/webapps
+
+
+---
+- hosts: ansiblehost
+  become: true
+  tasks:
+    - name: Log in to DockerHub
+      docker_login:
+        username: teja485
+        password: "@gopi09876A"
+      
+    - name: Build Docker image
+      command: docker build -t helloworld3:latest .
+      args:
+        chdir: /opt/docker
+    
+    - name: Tag Docker image for DockerHub
+      command: docker tag helloworld3:latest teja485/helloworld3:latest
+    
+    - name: Push Docker image to DockerHub
+      command: docker push teja485/helloworld3:latest
+
+
+
+---
+- hosts: dockerhost
+  become: true
+  tasks:
+    - name: Create and run the Docker container
+      command: docker run -d --name hello_world_server -p 8084:8080 teja485/helloworld3:latest
+
+
+
+
+sudo usermod -aG docker dockeradmin
+sudo chown -R dockeradmin:dockeradmin docker
+sudo chmod 777 /var/run/docker.sock
+
+
+---
+- name: Install and Configure Nginx
+  hosts: dockerhost
+  become: true
+  tasks:
+    - name: Install nginx
+      yum:
+        name: nginx
+        state: present
+
+    - name: Start and enable nginx
+      service:
+        name: nginx
+        state: started
+        enabled: true
+
+
+
+ssh-copy-id dockeradmin@docker private ip
+
+Hosts file 
+
+[Dockerhost]
+Private Ip ansible_user=dockeradmin ansible_ssh_private_key_file=/home/ec2-user/.ssh/id_rsa
+
+
+Test the Connection:-
+
+ssh -i ~/.ssh/id_rsa dockeradmin@ManagedNodeIp
+
+
+docker rm -f $(docker ps -aq)
+docker rmi -f $(docker images -aq)
